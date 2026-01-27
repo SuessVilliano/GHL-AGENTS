@@ -5,6 +5,7 @@ import authRouter from './api/auth.js';
 import operatorRouter from './api/operator.js';
 import setupRouter from './api/setup.js';
 import analyticsRouter from './api/analytics.js';
+import taskmagicRouter from './api/taskmagic.js';
 
 // Load environment variables
 dotenv.config();
@@ -44,6 +45,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/operator', operatorRouter);
 app.use('/api/setup', setupRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/taskmagic', taskmagicRouter);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -59,11 +59,11 @@ export const MOCK_APPROVAL_PACK = {
   aeo_score_impact: "High (+45 points)"
 };
 
-// Automation & Webhooks
-export const TASKMAGIC_WEBHOOK_URL = 'https://apps.taskmagic.com/api/v1/webhooks/kz5RSFhSRGxSNUhg11d7g';
-export const TASKMAGIC_MCP_TOKEN = 'o7Qv09IbKePvQjsVrPTzB';
-export const SUPPORT_URL = 'https://os.liv8ai.com/support';
-export const FEEDBACK_WEBHOOK_URL = 'https://apps.taskmagic.com/api/v1/webhooks/kz5RSFhSRGxSNUhg11d7g'; // Using same webhook for now or specialized one
+// Automation & Webhooks - Use environment variables for sensitive data
+export const TASKMAGIC_WEBHOOK_URL = import.meta.env.VITE_TASKMAGIC_WEBHOOK_URL || '';
+export const TASKMAGIC_MCP_TOKEN = import.meta.env.VITE_TASKMAGIC_MCP_TOKEN || '';
+export const SUPPORT_URL = import.meta.env.VITE_SUPPORT_URL || 'https://os.liv8ai.com/support';
+export const FEEDBACK_WEBHOOK_URL = import.meta.env.VITE_FEEDBACK_WEBHOOK_URL || TASKMAGIC_WEBHOOK_URL;
 
 export const PLATFORM_NAME = 'LIV8 OS';
 export const PLATFORM_VERSION = 'v2.5';
