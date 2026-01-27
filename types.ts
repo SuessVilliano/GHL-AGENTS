@@ -22,6 +22,8 @@ export interface BrandBrain {
   dont_say: string[];
   faqs: { q: string; a: string }[];
   knowledge_base: KnowledgeItem[];
+  mission?: string;
+  marketStage?: 'startup' | 'revamp' | 'scale';
 }
 
 export enum RoleKey {
@@ -97,6 +99,15 @@ export interface BuildPlan {
     preflightChecks: string[];
   };
 }
+
+export interface ClarifyingQuestion {
+  type: "clarifying_question";
+  question: string;
+  choices?: string[];
+  context?: Record<string, any>;
+}
+
+export type AIResponse = ActionPlan | ClarifyingQuestion;
 
 export interface ChatMessage {
   id: string;

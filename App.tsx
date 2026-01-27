@@ -5,15 +5,17 @@ import Dashboard from './components/Dashboard';
 import Connect from './components/Connect';
 import LandingPage from './components/LandingPage';
 import HelpDocs from './components/HelpDocs';
+import Operator from './components/Operator';
 import { saveToken, hasValidToken } from './services/vaultService';
 import { ErrorProvider, useError } from './contexts/ErrorContext';
+import { ExtensionThemeProvider } from './contexts/ThemeContext';
 import { ToastContainer } from './components/ui/Toast';
 import { VaultToken } from './types';
 
-const checkSetupStatus = (locationId: string | null) => {
+const checkSetupStatus = async (locationId: string | null) => {
   if (!locationId) return false;
-  const status = localStorage.getItem(`liv8_setup_${locationId}`);
-  return status === 'completed';
+  const result = await chrome.storage.local.get([`liv8_setup_${locationId}`]);
+  return result[`liv8_setup_${locationId}`] === 'completed';
 };
 
 type ViewState = 'loading' | 'landing' | 'docs' | 'connecting' | 'onboarding' | 'dashboard';
@@ -30,8 +32,6 @@ const AppContent: React.FC = () => {
 
     const init = async () => {
       let targetLocationId: string | null = null;
-      
-      // 1. Try URL Params
       try {
         const searchParams = new URLSearchParams(window.location.search);
         targetLocationId = searchParams.get('locationId');
@@ -39,20 +39,16 @@ const AppContent: React.FC = () => {
         console.warn("Could not parse URL params", e);
       }
 
-      // 2. Try Last Active Session (if no URL param)
       if (!targetLocationId) {
-        const lastActive = localStorage.getItem('liv8_last_location');
-        if (lastActive) {
-          targetLocationId = lastActive;
-        }
+        const result = await chrome.storage.local.get(['liv8_last_location']);
+        targetLocationId = result.liv8_last_location || null;
       }
-      
+
       if (targetLocationId) {
         setLocationId(targetLocationId);
         const isValid = await hasValidToken(targetLocationId);
-        
         if (isValid) {
-          const isSetup = checkSetupStatus(targetLocationId);
+          const isSetup = await checkSetupStatus(targetLocationId);
           setView(isSetup ? 'dashboard' : 'onboarding');
         } else {
           setView('connecting');
@@ -61,73 +57,45 @@ const AppContent: React.FC = () => {
         setView('landing');
       }
     };
-
     init();
   }, []);
 
-  const handleAuthSuccess = (token: VaultToken, locId: string) => {
-    saveToken(locId, token);
+  const handleAuthSuccess = async (token: VaultToken, locId: string) => {
+    await saveToken(locId, token);
     setLocationId(locId);
-    
-    // Persist as last active for reloads
-    localStorage.setItem('liv8_last_location', locId);
-    
-    // Update URL safely (ignore errors in sandboxed/blob environments)
-    try {
-      const newUrl = window.location.pathname + `?locationId=${locId}`;
-      window.history.replaceState({}, document.title, newUrl);
-    } catch (e) {
-      console.warn("Environment does not support history.replaceState (likely Blob URL). Skipping URL update.");
-    }
-    
+    await chrome.storage.local.set({ liv8_last_location: locId });
     addToast("Connected", "Secure connection established.", "success");
-    
-    // Check next step
-    const isSetup = checkSetupStatus(locId);
+    const isSetup = await checkSetupStatus(locId);
     setView(isSetup ? 'dashboard' : 'onboarding');
   };
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = async () => {
     if (locationId) {
-      localStorage.setItem(`liv8_setup_${locationId}`, 'completed');
+      await chrome.storage.local.set({ [`liv8_setup_${locationId}`]: 'completed' });
     }
-    addToast("Setup Complete", "LIV8AI System is now active.", "success");
+    addToast("Setup Complete", "LIV8 OS is now active.", "success");
     setView('dashboard');
   };
 
-  // View Routing
   if (view === 'loading') {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
+      <div className="flex items-center justify-center h-screen bg-[var(--os-bg)]">
         <div className="animate-pulse flex flex-col items-center">
-          <div className="w-12 h-12 bg-slate-900 rounded-xl mb-4 shadow-xl"></div>
-          <div className="text-slate-400 font-medium">Initializing LIV8 OS...</div>
+          <div className="w-12 h-12 bg-neuro rounded-2xl mb-4 shadow-xl shadow-neuro/30"></div>
+          <div className="text-[var(--os-text-muted)] text-[10px] font-black uppercase tracking-[0.2em] text-center">Establishing<br />OS Core...</div>
         </div>
       </div>
     );
   }
 
-  if (view === 'landing') {
-    return <LandingPage onLaunch={() => setView('connecting')} onOpenDocs={() => setView('docs')} />;
-  }
-
-  if (view === 'docs') {
-    return <HelpDocs onBack={() => setView('landing')} />;
-  }
-
-  if (view === 'connecting') {
-    return (
-      <Connect 
-        locationId={locationId} 
-        onAuth={handleAuthSuccess} 
-      />
-    );
-  }
+  if (view === 'landing') return <LandingPage onLaunch={() => setView('connecting')} onOpenDocs={() => setView('docs')} />;
+  if (view === 'docs') return <HelpDocs onBack={() => setView('landing')} />;
+  if (view === 'connecting') return <Connect locationId={locationId} onAuth={handleAuthSuccess} />;
 
   return (
     <>
       {view === 'onboarding' && <Onboarding onComplete={handleOnboardingComplete} />}
-      {view === 'dashboard' && <Dashboard />}
+      {view === 'dashboard' && <Operator />}
     </>
   );
 };
@@ -135,8 +103,10 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ErrorProvider>
-      <AppContent />
-      <ToastContainer />
+      <ExtensionThemeProvider>
+        <AppContent />
+        <ToastContainer />
+      </ExtensionThemeProvider>
     </ErrorProvider>
   );
 };

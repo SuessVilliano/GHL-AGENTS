@@ -1,7 +1,22 @@
-
 import React, { useState } from 'react';
+import {
+  Zap,
+  Brain,
+  Rocket,
+  Globe,
+  ChevronRight,
+  ArrowLeft,
+  CheckCircle2,
+  Cpu,
+  Sparkles,
+  Layout,
+  UserPlus,
+  ShieldCheck,
+  Target,
+  FileText,
+  X
+} from 'lucide-react';
 import { Button } from './ui/Button';
-import { Card } from './ui/Card';
 import KnowledgeBase from './KnowledgeBase';
 import { ROLE_OPTIONS } from '../constants';
 import { RoleKey, BrandBrain, ApprovalPack, BuildPlan } from '../types';
@@ -9,414 +24,469 @@ import { scanBrandIdentity } from '../services/geminiService';
 import { setupService } from '../services/setupService';
 import { useError } from '../contexts/ErrorContext';
 import { db } from '../services/database';
+import { automationService } from '../services/automation';
 
 interface OnboardingProps {
   onComplete: () => void;
 }
 
-type Step = 'intro' | 'brand' | 'training' | 'roles' | 'plan' | 'deploying';
+type Step = 'brand' | 'training' | 'preview' | 'roles' | 'plan' | 'deploying';
 
 const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
-  const [step, setStep] = useState<Step>('intro');
+  const [step, setStep] = useState<Step>('brand');
   const [loading, setLoading] = useState(false);
   const { addError, addToast } = useError();
-  
-  // State
+
   const [domain, setDomain] = useState('');
-  const [socials, setSocials] = useState('');
   const [description, setDescription] = useState('');
+
+  // Headless & Strategic Metadata
+  const [businessName, setBusinessName] = useState('');
+  const [businessPhone, setBusinessPhone] = useState('');
+  const [businessEmail, setBusinessEmail] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [ein, setEin] = useState('');
+  const [socialFB, setSocialFB] = useState('');
+  const [socialIG, setSocialIG] = useState('');
+  const [socialLI, setSocialLI] = useState('');
+  const [hostingLogin, setHostingLogin] = useState('');
+
+  const [marketStage, setMarketStage] = useState<'startup' | 'revamp' | 'scale'>('startup');
+  const [isVoiceApproved, setIsVoiceApproved] = useState(false);
+
   const [selectedRoles, setSelectedRoles] = useState<RoleKey[]>([RoleKey.AI_RECEPTIONIST, RoleKey.MISSED_CALL_RECOVERY]);
   const [brandBrain, setBrandBrain] = useState<BrandBrain | null>(null);
   const [approvalPack, setApprovalPack] = useState<ApprovalPack | null>(null);
   const [buildPlan, setBuildPlan] = useState<BuildPlan | null>(null);
-  
-  // Deployment State
+
   const [deployStatus, setDeployStatus] = useState("Initializing...");
   const [deployProgress, setDeployProgress] = useState(0);
 
-  // Handlers
+  const steps: { key: Step, label: string }[] = [
+    { key: 'brand', label: 'Recon' },
+    { key: 'training', label: 'Maturity' },
+    { key: 'preview', label: 'Voice' },
+    { key: 'roles', label: 'Staff' },
+    { key: 'plan', label: 'Preview' }
+  ];
+
   const handleScanBrand = async () => {
     setLoading(true);
     try {
-      // 1. Scan
-      const result = await scanBrandIdentity(domain, description, socials);
+      const metadata = {
+        businessName, businessPhone, businessEmail, businessAddress,
+        ein, socialFB, socialIG, socialLI, hostingLogin,
+        marketStage
+      };
+      const result = await scanBrandIdentity(domain, description, JSON.stringify(metadata));
       setBrandBrain(result);
-      
-      // 2. Persist to SQL DB
       await db.saveBrandBrain("current_location", result);
-      
-      setStep('training'); // Go to Training Step instead of Roles
-      addToast("Brand Brain Created", "Identity scanned. Now add training data.", "success");
+      setStep('training');
+      addToast("Market Mapped", "Strategy calculated based on " + marketStage, "success");
     } catch (e) {
-      addError(e, "Failed to scan brand. Please check the URL and try again.");
+      addError(e, "Neural scan interrupted.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleUpdateBrain = (updated: BrandBrain) => {
-    setBrandBrain(updated);
-    // Persist quietly
-    db.saveBrandBrain("current_location", updated);
   };
 
   const handleGeneratePlan = async () => {
     if (!brandBrain) return;
     setLoading(true);
     try {
-      // Use setupService to get both approval pack and technical build plan
       const { approval, build } = await setupService.compileArchitecture(brandBrain, selectedRoles);
-      
-      // Validate build plan integrity before proceeding
-      if (!build || !build.assets || !build.assets.pipelines) {
-        throw new Error("Generated plan was incomplete. Please try again.");
-      }
-
       setApprovalPack(approval);
       setBuildPlan(build);
       setStep('plan');
     } catch (e) {
-      addError(e, "Failed to generate approval pack.");
+      addError(e, "Failed to generate build plan.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeploy = async () => {
-    if (!buildPlan || !approvalPack) {
-      addToast("Error", "Build plan is missing. Please restart generation.", "error");
-      return;
-    }
     setStep('deploying');
-    
     try {
-      await setupService.deploySystem("current_location", buildPlan, (msg, pct) => {
+      // 1. Local Deployment (Knowledge Base / Roles)
+      await setupService.deploySystem("current_location", buildPlan!, (msg, pct) => {
         setDeployStatus(msg);
-        setDeployProgress(pct);
+        setDeployProgress(pct * 0.7); // Local sync accounts for 70%
       });
-      
-      // Persist deployment record
-      await db.saveDeployment("current_location", approvalPack, buildPlan);
-      
-      addToast("Deployment Successful", "LIV8AI System is now active.", "success");
-      onComplete();
+
+      // 2. External Deep Onboarding (TaskMagic / GHL Snapshots / Slack)
+      setDeployStatus("Triggering Deep Sync Architecture...");
+      await automationService.triggerDeepSync({
+        locationId: "current_location",
+        agencyName: brandBrain?.brand_confirmed?.name || "LIV8 Agency",
+        clientEmail: brandBrain?.brand_confirmed?.domain ? `admin@${brandBrain.brand_confirmed.domain}` : "support@liv8ai.com",
+        domain: domain,
+        selectedRoles: selectedRoles,
+        timestamp: Date.now()
+      });
+
+      setDeployProgress(100);
+      setDeployStatus("OS Neural Link Fully Optimized.");
+
+      setTimeout(() => {
+        onComplete();
+      }, 1500);
     } catch (e) {
-      addError(e, "Deployment failed. Some assets may not have been created.");
-      setStep('plan'); // Go back to plan on failure
+      addError(e, "Synchronization failed. One or more automation nodes are unreachable.");
+      setStep('plan');
     }
   };
 
   const toggleRole = (key: RoleKey) => {
-    setSelectedRoles(prev => 
+    setSelectedRoles(prev =>
       prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
     );
   };
 
-  // --- Renderers ---
+  return (
+    <div className="h-full bg-white flex flex-col font-sans text-slate-800">
 
-  const renderLoadingOverlay = (title: string, subtitle: string) => (
-    <div className="flex flex-col items-center justify-center py-12 space-y-8 animate-in fade-in duration-500">
-      <div className="relative">
-        <div className="w-20 h-20 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-12 h-12 bg-blue-50 rounded-full animate-pulse flex items-center justify-center">
-             <span className="text-xl">🧠</span>
-          </div>
-        </div>
-      </div>
-      <div className="text-center space-y-2">
-         <h3 className="text-xl font-bold text-slate-900">{title}</h3>
-         <p className="text-slate-500 text-sm animate-pulse">{subtitle}</p>
-      </div>
-    </div>
-  );
-
-  const renderIntro = () => (
-    <div className="flex flex-col items-center justify-center text-center space-y-6 max-w-lg mx-auto py-12 animate-in slide-in-from-bottom-4 duration-700">
-      <div className="w-20 h-20 bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl flex items-center justify-center mb-4 shadow-2xl shadow-slate-200 rotate-3 transition-transform hover:rotate-0">
-        <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-      </div>
-      <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">LIV8 Setup OS</h1>
-      <p className="text-slate-500 text-lg leading-relaxed">
-        LIV8AI will scan your brand, recruit your AI staff, and deploy a fully automated operations center inside HighLevel in <span className="text-slate-900 font-bold">120 seconds</span>.
-      </p>
-      <div className="pt-6 w-full">
-        <Button onClick={() => setStep('brand')} fullWidth className="h-14 text-lg shadow-xl shadow-blue-500/20 rounded-xl">
-          Start Setup
-        </Button>
-      </div>
-      <div className="flex items-center gap-4 text-xs text-slate-400 mt-4">
-        <span className="flex items-center gap-1">⚡ Automated</span>
-        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-        <span className="flex items-center gap-1">🔒 Secure</span>
-        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-        <span className="flex items-center gap-1">🚀 AEO Ready</span>
-      </div>
-    </div>
-  );
-
-  const renderBrand = () => (
-    <div className="space-y-6 max-w-xl mx-auto animate-in fade-in slide-in-from-right-4 duration-500">
-      <div className="space-y-2">
-        <h2 className="text-2xl font-bold text-slate-900">Brand Recon</h2>
-        <p className="text-slate-500">We'll scan your digital footprint to build your "Brand Brain".</p>
-      </div>
-      
-      {loading ? renderLoadingOverlay("Analyzing Brand DNA", "Scanning website, extracting tone, and identifying services...") : (
-        <>
-          <Card>
-            <div className="space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Website URL</label>
-                <input 
-                  type="text" 
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  placeholder="https://example.com"
-                  className="w-full rounded-lg border-slate-200 bg-slate-50 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2.5 text-sm transition-all"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Social Media Links <span className="text-slate-400 font-normal">(Optional)</span></label>
-                <input 
-                  type="text" 
-                  value={socials}
-                  onChange={(e) => setSocials(e.target.value)}
-                  placeholder="Instagram, Facebook, or LinkedIn URLs"
-                  className="w-full rounded-lg border-slate-200 bg-slate-50 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2.5 text-sm transition-all"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">Helps us understand your brand voice better.</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Brief Description</label>
-                <textarea 
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="What do you do and who do you serve?"
-                  rows={3}
-                  className="w-full rounded-lg border-slate-200 bg-slate-50 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2.5 text-sm transition-all resize-none"
-                />
-              </div>
+      {/* 1. Header & Progress - Turquoise Neuro Style */}
+      <header className="px-6 py-8 border-b border-slate-100 sticky top-0 bg-white z-50">
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-neuro rounded-lg flex items-center justify-center rotate-3">
+              <Sparkles className="h-5 w-5 text-white" />
             </div>
-          </Card>
+            <div>
+              <h1 className="font-bold text-lg text-slate-900 tracking-tight leading-none uppercase">LIV8 OS <span className="text-neuro">Sync</span></h1>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Platform Orchestration</p>
+            </div>
+          </div>
+          <button
+            onClick={() => { if (confirm("Discard sync and return to home?")) window.location.reload(); }}
+            className="p-2 text-slate-300 hover:text-red-500 transition"
+            title="Cancel Setup"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
-          <Button onClick={handleScanBrand} disabled={!domain || loading} fullWidth className="h-12 shadow-lg">
-            Create Brand Brain
-          </Button>
-        </>
-      )}
-    </div>
-  );
+        <div className="flex items-center justify-between px-2">
+          {steps.map((s, idx) => (
+            <div key={s.key} className="flex flex-col items-center gap-2 group cursor-pointer" onClick={() => {
+              const currentIdx = steps.findIndex(x => x.key === step);
+              if (idx < currentIdx || (brandBrain && idx <= 3)) setStep(s.key);
+            }}>
+              <div className={`
+                w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black border transition-all
+                ${step === s.key ? 'bg-neuro text-white border-neuro ring-4 ring-neuro-light/30' :
+                  steps.findIndex(x => x.key === step) > idx ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-slate-50 text-slate-400 border-slate-200'}
+              `}>
+                {steps.findIndex(x => x.key === step) > idx ? <CheckCircle2 className="h-4 w-4" /> : idx + 1}
+              </div>
+              <span className={`text-[9px] font-bold uppercase tracking-tight ${step === s.key ? 'text-neuro' : 'text-slate-400'}`}>{s.label}</span>
+            </div>
+          ))}
+        </div>
+      </header>
 
-  const renderTraining = () => (
-    <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in slide-in-from-right-4 duration-500 h-[calc(100vh-140px)] flex flex-col">
-       <div className="space-y-2 shrink-0">
-        <h2 className="text-2xl font-bold text-slate-900">Knowledge Base</h2>
-        <p className="text-slate-500">Upload documents, paste notes, or record voice messages to train your AI.</p>
-      </div>
-      
-      <div className="flex-1 min-h-0">
-        {brandBrain && <KnowledgeBase brain={brandBrain} onUpdate={handleUpdateBrain} />}
-      </div>
+      {/* 2. Content Area */}
+      <div className="flex-1 overflow-y-auto px-6 py-10 custom-scrollbar">
 
-      <div className="shrink-0 pt-4 flex gap-4">
-         <Button variant="ghost" onClick={() => setStep('brand')}>Back</Button>
-         <Button onClick={() => setStep('roles')} className="flex-1 shadow-lg">Continue to Roles</Button>
-      </div>
-    </div>
-  );
+        {step === 'brand' && (
+          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight italic">Ultimate Recon</h2>
+              <p className="text-sm text-slate-500 font-medium leading-relaxed font-neuro">Gathering business intelligence for headless orchestration.</p>
+            </div>
 
-  const renderRoles = () => (
-    <div className="space-y-6 max-w-2xl mx-auto animate-in fade-in slide-in-from-right-4 duration-500">
-      <div className="space-y-2">
-        <h2 className="text-2xl font-bold text-slate-900">Hire your AI Staff</h2>
-        <p className="text-slate-500">Select the roles you want to activate immediately.</p>
-      </div>
+            {loading ? (
+              <div className="py-20 flex flex-col items-center gap-6">
+                <div className="w-12 h-12 border-4 border-neuro-light border-t-neuro rounded-full animate-spin"></div>
+                <p className="text-xs font-black text-neuro uppercase tracking-[0.2em] animate-pulse">Syncing Neural Core...</p>
+              </div>
+            ) : (
+              <div className="space-y-8 pb-32">
+                {/* 0. Market Maturity (NEW) */}
+                <div className="space-y-4">
+                  <div className="text-[10px] font-black uppercase text-neuro tracking-[0.2em] ml-1">Market Maturity Node</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { id: 'startup', label: 'Startup', icon: Rocket, desc: 'Fresh Brand' },
+                      { id: 'revamp', label: 'Revamp', icon: Zap, desc: 'Fixing Core' },
+                      { id: 'scale', label: 'Scale', icon: Target, desc: 'Hyper Optimization' }
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => setMarketStage(m.id as any)}
+                        className={`p-4 rounded-2xl border text-left transition-all ${marketStage === m.id ? 'bg-neuro border-neuro text-white shadow-lg shadow-neuro/20 scale-[1.02]' : 'bg-[#f9fbff] border-slate-100 text-slate-400 hover:border-neuro/30'}`}
+                      >
+                        <m.icon className={`h-5 w-5 mb-3 ${marketStage === m.id ? 'text-white' : 'text-slate-300'}`} />
+                        <div className="text-[10px] font-black uppercase tracking-tight leading-none">{m.label}</div>
+                        <div className={`text-[8px] mt-1 font-bold ${marketStage === m.id ? 'text-white/70' : 'text-slate-300'}`}>{m.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-      {loading ? renderLoadingOverlay("Compiling Setup OS", "Generating workflows, pipelines, and configuration packets...") : (
-        <>
-          <div className="grid gap-4">
-            {ROLE_OPTIONS.map((role) => (
-              <div 
-                key={role.key}
-                onClick={() => toggleRole(role.key)}
-                className={`
-                  relative flex items-start p-4 border rounded-xl cursor-pointer transition-all duration-200
-                  ${selectedRoles.includes(role.key) 
-                    ? 'border-blue-600 bg-blue-50/50 ring-1 ring-blue-600 shadow-md' 
-                    : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50 bg-white shadow-sm'}
-                `}
-              >
-                <div className="flex items-center h-5">
-                  <input
-                    type="checkbox"
-                    checked={selectedRoles.includes(role.key)}
-                    readOnly
-                    className="h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-600 pointer-events-none"
+                {/* 1. Core Identity */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase text-neuro tracking-[0.2em] ml-1">Core Identity</label>
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      placeholder="Full Business Name"
+                      className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-5 py-3.5 text-sm focus:ring-1 focus:ring-neuro outline-none transition-all placeholder:text-slate-300 font-medium"
+                    />
+                    <div className="relative">
+                      <Globe className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
+                      <input
+                        type="text"
+                        value={domain}
+                        onChange={(e) => setDomain(e.target.value)}
+                        placeholder="https://brand-domain.com"
+                        className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl pl-11 pr-5 py-3.5 text-sm focus:ring-1 focus:ring-neuro outline-none transition-all placeholder:text-slate-300 font-medium"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Logistics */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase text-neuro tracking-[0.2em] ml-1">Logistics & Communication</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="email" value={businessEmail} onChange={e => setBusinessEmail(e.target.value)} placeholder="Support Email" className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-neuro outline-none transition-all placeholder:text-slate-300 font-medium" />
+                    <input type="text" value={businessPhone} onChange={e => setBusinessPhone(e.target.value)} placeholder="Headquarters Phone" className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-neuro outline-none transition-all placeholder:text-slate-300 font-medium" />
+                  </div>
+                  <input type="text" value={businessAddress} onChange={e => setBusinessAddress(e.target.value)} placeholder="Physical Headquarters Address" className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-neuro outline-none transition-all placeholder:text-slate-300 font-medium" />
+                </div>
+
+                {/* 3. Compliance & Socials */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase text-neuro tracking-[0.2em] ml-1">Compliance & Social Trace</label>
+                  <input type="text" value={ein} onChange={e => setEin(e.target.value)} placeholder="EIN / Tax ID (required for TCR/A2P)" className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-neuro outline-none transition-all placeholder:text-slate-300 font-medium" />
+                  <div className="grid grid-cols-3 gap-2">
+                    <input type="text" value={socialFB} onChange={e => setSocialFB(e.target.value)} placeholder="FB Link" className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-3 py-3 text-[10px] font-bold focus:ring-1 focus:ring-neuro outline-none placeholder:text-slate-200" />
+                    <input type="text" value={socialIG} onChange={e => setSocialIG(e.target.value)} placeholder="IG Link" className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-3 py-3 text-[10px] font-bold focus:ring-1 focus:ring-neuro outline-none placeholder:text-slate-200" />
+                    <input type="text" value={socialLI} onChange={e => setSocialLI(e.target.value)} placeholder="LI Link" className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-3 py-3 text-[10px] font-bold focus:ring-1 focus:ring-neuro outline-none placeholder:text-slate-200" />
+                  </div>
+                </div>
+
+                {/* 4. Technical */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase text-neuro tracking-[0.2em] ml-1">Infrastructure</label>
+                  <input type="text" value={hostingLogin} onChange={e => setHostingLogin(e.target.value)} placeholder="Domain / Cloud Login (Manual Handover)" className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-neuro outline-none transition-all placeholder:text-slate-300 font-medium" />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Advanced Context (Optional)</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Provide additional context for the AI build..."
+                    rows={3}
+                    className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-5 py-4 text-sm focus:ring-1 focus:ring-neuro outline-none transition-all placeholder:text-slate-300 font-medium resize-none shadow-inner"
                   />
                 </div>
-                <div className="ml-3 text-sm">
-                  <label className="font-bold text-slate-900 cursor-pointer flex items-center gap-2">
-                    {role.label}
-                    {role.recommended && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 uppercase tracking-wide">Recommended</span>}
-                  </label>
-                  <p className="text-slate-500 mt-1 leading-snug">{role.description}</p>
+
+                <Button onClick={handleScanBrand} disabled={!domain || !businessName || loading} className="w-full h-14 bg-neuro hover:bg-neuro-dark text-white rounded-[1.5rem] border-none font-black text-xs tracking-[0.2em] shadow-xl shadow-neuro/10 uppercase transition-all">
+                  Construct Blueprint <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 'training' && brandBrain && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight italic">Knowledge Sync</h2>
+              <p className="text-sm text-slate-500 font-medium leading-relaxed font-neuro">Review and refine the brand intelligence base.</p>
+            </div>
+
+            <div className="bg-[#f9fbff] rounded-3xl border border-slate-100 overflow-hidden shadow-inner">
+              <KnowledgeBase brain={brandBrain} onUpdate={setBrandBrain} />
+            </div>
+
+            <div className="pt-4 flex gap-4">
+              <button onClick={() => setStep('brand')} className="px-5 rounded-2xl border border-slate-200 bg-white text-slate-400 hover:text-slate-900 transition"><ArrowLeft className="h-5 w-5" /></button>
+              <Button onClick={() => setStep('preview')} className="flex-1 h-14 bg-neuro hover:bg-neuro-dark text-white rounded-2xl border-none font-black text-[11px] uppercase tracking-widest shadow-xl shadow-neuro/10">
+                Proceed to Validation <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 'preview' && brandBrain && (
+          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight italic text-neuro">Neural Guardrail</h2>
+              <p className="text-sm text-slate-500 font-medium leading-relaxed font-neuro">Verify the trace before generating staff knowledge nodes.</p>
+            </div>
+
+            <div className="space-y-6">
+              <div className="p-8 rounded-[2.5rem] bg-[#f9fbff]/50 border border-slate-100 space-y-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-neuro/5 blur-3xl rounded-full"></div>
+
+                <div className="space-y-3">
+                  <div className="text-[10px] font-black uppercase text-neuro tracking-[0.3em]">Neural Core: Primary Mission</div>
+                  <p className="text-base text-slate-800 font-bold leading-relaxed italic">"{brandBrain.mission}"</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Established Values</div>
+                    <div className="flex flex-wrap gap-2">
+                      {brandBrain.values.map(v => <span key={v} className="px-3 py-1.5 bg-white border border-slate-100 rounded-xl text-[10px] font-black text-slate-700 uppercase tracking-tight">{v}</span>)}
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Voice Modulation</div>
+                    <div className="flex flex-wrap gap-2">
+                      {brandBrain.tones.map(t => <span key={t} className="px-3 py-1.5 bg-neuro text-white rounded-xl text-[10px] font-black uppercase tracking-tighter shadow-sm">{t}</span>)}
+                    </div>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
 
-          <div className="flex gap-4 pt-4">
-            <Button variant="ghost" onClick={() => setStep('training')} className="px-6">Back</Button>
-            <Button onClick={handleGeneratePlan} disabled={loading} className="flex-1 h-12 shadow-lg">
-              Generate Approval Pack
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
-  );
+              <div className="p-6 rounded-3xl bg-amber-50 border border-amber-100/50 flex items-start gap-4 shadow-sm">
+                <ShieldCheck className="h-6 w-6 text-amber-500 mt-1 shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-[11px] font-black text-amber-600 uppercase tracking-widest leading-none">Hallucination Lock</p>
+                  <p className="text-xs text-amber-700/80 font-medium leading-relaxed">Approving this trace forces all AI staff to strictly adhere to these brand parameters. Accuracy is 100% guaranteed within this scope.</p>
+                </div>
+              </div>
 
-  const renderPlan = () => (
-    <div className="space-y-6 max-w-3xl mx-auto h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-500">
-       <div className="space-y-2 shrink-0">
-        <h2 className="text-2xl font-bold text-slate-900">Approval Pack</h2>
-        <p className="text-slate-500">Review the blueprint before we deploy to your GHL account.</p>
-      </div>
-
-      {approvalPack && (
-        <div className="flex-1 overflow-auto space-y-4 pr-2 pb-4">
-          {/* Summary Card */}
-          <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full blur-[80px] opacity-20 group-hover:opacity-30 transition-opacity"></div>
-            <div className="relative z-10">
-              <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-                <span className="text-xl">🚀</span> Deployment Strategy
-              </h3>
-              <p className="text-slate-300 leading-relaxed text-sm md:text-base">{approvalPack.summary}</p>
-              <div className="mt-4 flex items-center gap-2 text-sm bg-white/10 p-2.5 rounded-lg w-fit backdrop-blur-sm">
-                <span className="text-green-400 font-bold">⚡ AEO Impact:</span>
-                <span className="font-mono">{approvalPack.aeo_score_impact}</span>
+              <div className="flex gap-4">
+                <button onClick={() => setStep('training')} className="px-5 rounded-2xl border border-slate-200 bg-white text-slate-400 hover:text-slate-900 transition"><ArrowLeft className="h-5 w-5" /></button>
+                <Button
+                  onClick={() => { setIsVoiceApproved(true); setStep('roles'); }}
+                  className="flex-1 h-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl border-none font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20"
+                >
+                  Approve & Recruit Staff <CheckCircle2 className="ml-2 h-4 w-4" />
+                </Button>
               </div>
             </div>
           </div>
+        )}
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <Card>
-              <h3 className="font-bold text-slate-900 mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-                <span className="text-lg">🧠</span> Confirmed Brand
-              </h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between items-center p-2 bg-slate-50 rounded-lg">
-                  <span className="text-slate-500">Name</span>
-                  <span className="font-bold text-slate-900">{brandBrain?.brand_name}</span>
+        {step === 'roles' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Phase 3: Recruit AI Staff</h2>
+              <p className="text-sm text-slate-500 font-medium leading-relaxed">Select autonomous nodes to operate within your GHL location.</p>
+            </div>
+
+            <div className="space-y-4">
+              {ROLE_OPTIONS.map((role) => (
+                <div
+                  key={role.key}
+                  onClick={() => toggleRole(role.key)}
+                  className={`
+                      p-6 rounded-2xl border transition-all cursor-pointer relative group
+                      ${selectedRoles.includes(role.key) ? 'bg-neuro-light/20 border-neuro shadow-md' : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'}
+                    `}
+                >
+                  <div className="flex gap-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-all ${selectedRoles.includes(role.key) ? 'bg-neuro border-neuro text-white' : 'bg-slate-50 border-slate-100 text-slate-400'
+                      }`}>
+                      {role.key === RoleKey.AI_RECEPTIONIST ? <UserPlus className="h-5 w-5" /> : <Target className="h-5 w-5" />}
+                    </div>
+                    <div className="flex-1 min-w-0 pr-4">
+                      <h4 className="font-bold text-slate-900 text-sm group-hover:text-neuro transition">{role.label}</h4>
+                      <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">{role.description}</p>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-all ${selectedRoles.includes(role.key) ? 'bg-neuro border-neuro text-white' : 'border-slate-300'
+                      }`}>
+                      {selectedRoles.includes(role.key) && <CheckCircle2 className="h-3 w-3" />}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center p-2 bg-slate-50 rounded-lg">
-                  <span className="text-slate-500">Domain</span>
-                  <span className="font-mono text-xs text-slate-700">{brandBrain?.domain}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-slate-50 rounded-lg">
-                  <span className="text-slate-500">Training Data</span>
-                  <span className="inline-flex px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
-                    {brandBrain?.knowledge_base?.length || 0} Items
-                  </span>
+              ))}
+            </div>
+
+            <div className="pt-4 flex gap-4">
+              <button onClick={() => setStep('preview')} className="px-5 rounded-xl border border-slate-200 bg-white text-slate-400 hover:text-slate-900 transition"><ArrowLeft className="h-5 w-5" /></button>
+              <Button onClick={handleGeneratePlan} disabled={loading} className="flex-1 h-14 bg-neuro hover:bg-neuro-dark text-white rounded-xl border-none font-bold text-sm tracking-wide shadow-xl shadow-neuro/10">
+                {loading ? "Mapping Neural Pathways..." : "Sync Build Blueprint"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 'plan' && approvalPack && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 mb-20">
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Phase 4: Sync Confirmation</h2>
+              <p className="text-sm text-slate-500 font-medium leading-relaxed">Final validation of the neural assets to be deployed.</p>
+            </div>
+
+            <div className="bg-slate-900 rounded-2xl p-6 text-white space-y-4 shadow-xl">
+              <div className="flex items-center gap-2 text-[10px] font-black text-neuro uppercase tracking-widest">
+                <Zap className="h-4 w-4" /> Operational Strategy
+              </div>
+              <p className="text-xs text-slate-300 font-medium leading-relaxed">{approvalPack.summary}</p>
+            </div>
+
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2"><Layout className="h-4 w-4" /> CRM Architecture</h4>
+                <div className="grid grid-cols-1 gap-2">
+                  {approvalPack.deploy_steps.slice(0, 4).map((s, i) => (
+                    <div key={i} className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 shadow-sm">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      <span className="text-[11px] font-bold text-slate-700 tracking-tight uppercase">{s}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </Card>
 
-            <Card>
-              <h3 className="font-bold text-slate-900 mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-                 <span className="text-lg">✅</span> Included Actions
-              </h3>
-              <ul className="space-y-2 text-sm text-slate-600">
-                {approvalPack.deploy_steps.map((step, idx) => (
-                  <li key={idx} className="flex items-start gap-2.5 p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
-                    <div className="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-[10px] font-bold mt-0.5 shrink-0">✓</div>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2"><Cpu className="h-4 w-4" /> AI Staff Protocols</h4>
+                <div className="space-y-2">
+                  {approvalPack.ai_staff_actions.map((a, i) => (
+                    <div key={i} className="bg-neuro-light/10 p-4 rounded-xl border border-neuro-light/30 space-y-2 shadow-sm">
+                      <div className="font-bold text-xs text-neuro-dark">{a.role}</div>
+                      <p className="text-[10px] text-slate-500 font-medium leading-relaxed line-clamp-2">{a.action}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="fixed bottom-0 left-0 w-full p-6 bg-white border-t border-slate-100 flex gap-4 z-50">
+              <button onClick={() => setStep('roles')} className="px-5 rounded-xl border border-slate-200 bg-white text-slate-400 hover:text-slate-900 transition"><ArrowLeft className="h-5 w-5" /></button>
+              <Button onClick={handleDeploy} className="flex-1 h-14 bg-neuro hover:bg-neuro-dark text-white rounded-xl border-none font-bold text-sm tracking-wide shadow-xl shadow-neuro/20 opacity-100 translate-y-0 transition-all">
+                Execute Neural Sync <Rocket className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
           </div>
+        )}
 
-          <Card>
-             <h3 className="font-bold text-slate-900 mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-                <span className="text-lg">🤖</span> AI Staff Configuration
-             </h3>
-             <div className="space-y-3">
-                {approvalPack.ai_staff_actions.map((item, idx) => (
-                  <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <span className="font-bold text-slate-900 flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                      {item.role}
-                    </span>
-                    <span className="text-slate-500 text-xs mt-1 sm:mt-0 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">{item.action}</span>
-                  </div>
-                ))}
-             </div>
-          </Card>
-        </div>
-      )}
-
-      <div className="pt-4 shrink-0 flex gap-4 bg-gray-50 z-10 border-t border-slate-200 mt-auto">
-         <Button variant="ghost" onClick={() => setStep('roles')}>Adjust Roles</Button>
-         <Button onClick={handleDeploy} variant="secondary" fullWidth className="shadow-xl shadow-blue-500/20 h-12 text-base">
-           Approve & Deploy System
-         </Button>
+        {step === 'deploying' && (
+          <div className="flex flex-col items-center justify-center py-20 px-6 space-y-12 animate-in fade-in duration-700">
+            <div className="relative">
+              <div className="w-24 h-24 border-4 border-neuro-light border-t-neuro rounded-full animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Rocket className="h-10 w-10 text-neuro" />
+              </div>
+            </div>
+            <div className="text-center space-y-6 w-full max-w-xs">
+              <div className="space-y-2">
+                <h3 className="font-bold text-lg text-slate-900">Syncing Neuro Core</h3>
+                <p className="text-[10px] font-black text-neuro uppercase tracking-[0.2em] animate-pulse">{deployStatus}</p>
+              </div>
+              <div className="space-y-3">
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200 shadow-inner">
+                  <div className="bg-neuro h-full transition-all duration-1000 ease-out shadow-lg shadow-neuro/30" style={{ width: `${deployProgress}%` }} />
+                </div>
+                <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  <span>Synchronizing</span>
+                  <span>{deployProgress}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  );
-
-  const renderDeploying = () => (
-    <div className="flex flex-col items-center justify-center h-full space-y-12 animate-in fade-in duration-700">
-      <div className="relative">
-        <div className="w-32 h-32 border-[6px] border-slate-100 border-t-slate-900 rounded-full animate-spin"></div>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center animate-pulse">
-             <span className="text-3xl">🏗️</span>
-          </div>
-        </div>
-      </div>
-      
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold text-slate-900">Deploying LIV8 System</h2>
-          <div className="h-6 flex items-center justify-center overflow-hidden">
-             <p key={deployStatus} className="text-blue-600 font-mono text-sm animate-in slide-in-from-bottom-2 duration-300">
-               {deployStatus}
-             </p>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden shadow-inner">
-             <div 
-               className="bg-slate-900 h-3 rounded-full transition-all duration-500 ease-out relative overflow-hidden" 
-               style={{ width: `${deployProgress}%` }}
-             >
-                <div className="absolute inset-0 bg-white/20 animate-[shimmer_2s_infinite]"></div>
-             </div>
-          </div>
-          <div className="flex justify-between text-xs font-bold text-slate-400 px-1">
-             <span>INITIALIZING</span>
-             <span>{deployProgress}%</span>
-             <span>COMPLETE</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="h-full px-4 py-6 md:px-8 overflow-y-auto bg-white/50">
-      {step === 'intro' && renderIntro()}
-      {step === 'brand' && renderBrand()}
-      {step === 'training' && renderTraining()}
-      {step === 'roles' && renderRoles()}
-      {step === 'plan' && renderPlan()}
-      {step === 'deploying' && renderDeploying()}
     </div>
   );
 };

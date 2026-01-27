@@ -1,0 +1,121 @@
+import express, { Request, Response } from 'express';
+import { authService } from '../services/auth.js';
+import { db } from '../db/index.js';
+
+const router = express.Router();
+
+/**
+ * POST /api/auth/register
+ * Register new agency and owner user
+ */
+router.post('/register', async (req: Request, res: Response) => {
+    try {
+        const { email, password, agencyName } = req.body;
+
+        if (!email || !password || !agencyName) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        const result = await authService.register(email, password, agencyName);
+
+        res.json(result);
+    } catch (error: any) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/auth/login
+ * Login user and get JWT token
+ */
+router.post('/login', async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Missing email or password' });
+        }
+
+        const result = await authService.login(email, password);
+
+        res.json(result);
+    } catch (error: any) {
+        res.status(401).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/auth/connect-location
+ * Save GHL location PIT token (encrypted in database)
+ */
+router.post('/connect-location', async (req: Request, res: Response) => {
+    try {
+        const authHeader = req.headers.authorization;
+
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        const token = authHeader.substring(7);
+        const payload = authService.verifyToken(token);
+
+        const { locationId, locationName, ghlToken } = req.body;
+
+        if (!locationId || !ghlToken) {
+            return res.status(400).json({ error: 'Missing locationId or ghlToken' });
+        }
+
+        // Save location with encrypted token
+        const location = await db.saveLocation(
+            payload.agencyId,
+            locationId,
+            locationName || 'Unnamed Location',
+            ghlToken
+        );
+
+        res.json({
+            success: true,
+            location: {
+                id: location.id,
+                ghlLocationId: location.ghl_location_id,
+                name: location.name
+            }
+        });
+    } catch (error: any) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/auth/me
+ * Get current user info
+ */
+router.get('/me', async (req: Request, res: Response) => {
+    try {
+        const authHeader = req.headers.authorization;
+
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        const token = authHeader.substring(7);
+        const payload = authService.verifyToken(token);
+
+        const user = await db.getUserById(payload.userId);
+        const locations = await db.getLocationsByAgency(payload.agencyId);
+
+        res.json({
+            user: {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                agencyId: user.agency_id
+            },
+            locations
+        });
+    } catch (error: any) {
+        res.status(401).json({ error: error.message });
+    }
+});
+
+export default router;

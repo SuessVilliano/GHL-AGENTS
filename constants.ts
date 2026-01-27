@@ -1,39 +1,39 @@
 import { RoleDefinition, RoleKey } from './types';
 
 export const ROLE_OPTIONS: RoleDefinition[] = [
-  { 
-    key: RoleKey.AI_RECEPTIONIST, 
-    label: "AI Receptionist", 
+  {
+    key: RoleKey.AI_RECEPTIONIST,
+    label: "AI Receptionist",
     description: "Answers inbound calls 24/7, handles FAQs, and filters spam.",
     recommended: true
   },
-  { 
-    key: RoleKey.MISSED_CALL_RECOVERY, 
-    label: "Missed Call Recovery", 
+  {
+    key: RoleKey.MISSED_CALL_RECOVERY,
+    label: "Missed Call Recovery",
     description: "Instantly texts back missed calls to save the lead.",
     recommended: true
   },
-  { 
-    key: RoleKey.LEAD_QUALIFIER, 
-    label: "Lead Qualifier", 
+  {
+    key: RoleKey.LEAD_QUALIFIER,
+    label: "Lead Qualifier",
     description: "Asks qualification questions via SMS/IG before booking.",
     recommended: false
   },
-  { 
-    key: RoleKey.BOOKING_ASSISTANT, 
-    label: "Booking Assistant", 
+  {
+    key: RoleKey.BOOKING_ASSISTANT,
+    label: "Booking Assistant",
     description: "Negotiates times and books directly to your calendar.",
     recommended: false
   },
-  { 
-    key: RoleKey.REVIEW_COLLECTOR, 
-    label: "Review Collector", 
+  {
+    key: RoleKey.REVIEW_COLLECTOR,
+    label: "Review Collector",
     description: "Automatically requests reviews after successful service.",
     recommended: true
   },
-  { 
-    key: RoleKey.REENGAGEMENT_AGENT, 
-    label: "Re-engagement Agent", 
+  {
+    key: RoleKey.REENGAGEMENT_AGENT,
+    label: "Re-engagement Agent",
     description: "Wakes up cold leads from 90+ days ago.",
     recommended: false
   }
@@ -57,3 +57,12 @@ export const MOCK_APPROVAL_PACK = {
   ],
   aeo_score_impact: "High (+45 points)"
 };
+
+// Automation & Webhooks
+export const TASKMAGIC_WEBHOOK_URL = 'https://apps.taskmagic.com/api/v1/webhooks/kz5RSFhSRGxSNUhg11d7g';
+export const TASKMAGIC_MCP_TOKEN = 'o7Qv09IbKePvQjsVrPTzB';
+export const SUPPORT_URL = 'https://api.anychat.one/uw/embed/16b8cd80-074b-331c-8afa-470bc44bf6b9';
+export const FEEDBACK_WEBHOOK_URL = 'https://apps.taskmagic.com/api/v1/webhooks/kz5RSFhSRGxSNUhg11d7g'; // Using same webhook for now or specialized one
+
+export const PLATFORM_NAME = 'LIV8 OS';
+export const PLATFORM_VERSION = 'v2.5';

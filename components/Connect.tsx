@@ -1,21 +1,30 @@
-
 import React, { useState } from 'react';
+import {
+  Shield,
+  Key,
+  HelpCircle,
+  ArrowLeft,
+  ChevronRight,
+  ExternalLink,
+  ChevronDown
+} from 'lucide-react';
 import { Button } from './ui/Button';
-import { Card } from './ui/Card';
 import { verifyManualConnection } from '../services/ghlAuth';
-import { clearToken } from '../services/vaultService';
+import { saveToken, clearToken } from '../services/vaultService';
 import { useError } from '../contexts/ErrorContext';
 import { VaultToken } from '../types';
 
 interface ConnectProps {
   locationId: string | null;
   onAuth: (token: VaultToken, locationId: string) => void;
+  onBack?: () => void;
 }
 
-const Connect: React.FC<ConnectProps> = ({ locationId: initialLocationId, onAuth }) => {
+const Connect: React.FC<ConnectProps> = ({ locationId: initialLocationId, onAuth, onBack }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [locId, setLocId] = useState(initialLocationId || '');
   const [apiKey, setApiKey] = useState('');
+  const [showGuide, setShowGuide] = useState(false);
   const { addError, addToast } = useError();
 
   const handleConnect = async (e: React.FormEvent) => {
@@ -27,98 +36,124 @@ const Connect: React.FC<ConnectProps> = ({ locationId: initialLocationId, onAuth
 
     setIsConnecting(true);
     try {
-      // Verify and get a formatted token object
       const token = await verifyManualConnection(locId, apiKey);
-      
-      // Pass back to App to save and redirect
-      // Note: If onAuth throws (e.g. history api error), we catch it here
-      onAuth(token, locId);
-      
+      await onAuth(token, locId);
     } catch (err) {
       addError(err, "Connection failed");
       setIsConnecting(false);
     }
   };
 
-  const handleReset = () => {
-    if (confirm("Clear local credentials and refresh?")) {
-      if (initialLocationId) clearToken(initialLocationId);
-      localStorage.removeItem('liv8_last_location');
-      
-      try {
-         window.location.href = window.location.pathname; 
-      } catch (e) {
-         window.location.reload();
-      }
-    }
-  };
-
   return (
-    <div className="h-full overflow-y-auto bg-slate-50">
-      <div className="min-h-full flex flex-col items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 space-y-8 animate-in fade-in zoom-in-95 duration-300">
-          
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-slate-900/20">
-              <span className="text-white font-bold text-xl tracking-widest">LIV8</span>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Connect to HighLevel</h1>
-              <p className="text-slate-500 text-sm mt-1">
-                Enter your location credentials to enable the AI Operator.
-              </p>
-            </div>
-          </div>
+    <div className="h-full overflow-y-auto bg-white flex flex-col font-sans text-slate-800">
 
-          <form onSubmit={handleConnect} className="space-y-5">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Location ID</label>
-                <input 
-                  type="text" 
-                  value={locId}
-                  onChange={(e) => setLocId(e.target.value)}
-                  placeholder="e.g. ve92Q..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all font-mono text-slate-700 placeholder:font-sans"
-                />
-              </div>
-              
-              <div>
-                <div className="flex justify-between items-center mb-1.5 ml-1">
-                  <label className="block text-xs font-bold uppercase text-slate-500">API Key / Access Token</label>
-                  <a href="#" onClick={(e) => { e.preventDefault(); alert("Go to GHL > Settings > Business Info > API Key"); }} className="text-[10px] text-blue-600 hover:underline cursor-pointer">
-                    Where do I find this?
-                  </a>
-                </div>
-                <input 
-                  type="password" 
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="pit-..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all font-mono text-slate-700 placeholder:font-sans"
-                />
-              </div>
-            </div>
-
-            <Button 
-              type="submit"
-              disabled={isConnecting} 
-              fullWidth 
-              className="h-12 text-base shadow-lg shadow-slate-900/10"
-            >
-              {isConnecting ? "Verifying..." : "Connect Securely"}
-            </Button>
-          </form>
-          
-          <div className="pt-2 text-center">
-             <p className="text-xs text-slate-400">
-               Your keys are encrypted and stored locally on your device.
-             </p>
-             <button onClick={handleReset} className="mt-4 text-[10px] text-slate-300 hover:text-red-400 transition-colors">
-              Reset Session
-            </button>
-          </div>
+      {/* Header */}
+      <div className="px-6 py-8 space-y-4">
+        <button onClick={onBack} className="text-slate-400 hover:text-slate-900 transition flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest">
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Enter Credentials</h1>
+          <p className="text-sm text-slate-500 font-medium">Step 4: Connect your GoHighLevel account.</p>
         </div>
+      </div>
+
+      <div className="px-6 pb-20 space-y-10">
+
+        {/* Help Link */}
+        <div className="bg-blue-50/50 rounded-2xl p-6 border border-blue-100 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[#1068EB]">
+              <HelpCircle className="h-5 w-5" />
+            </div>
+            <div className="text-xs font-bold text-[#1068EB] uppercase tracking-wide">Connection Guide</div>
+          </div>
+          <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+            Need help finding your Location ID or Private Integration Token? View our setup guide for step-by-step instructions.
+          </p>
+          <button
+            className="text-xs font-bold text-[#1068EB] hover:underline flex items-center gap-1"
+            onClick={() => setShowGuide(!showGuide)}
+          >
+            {showGuide ? 'Hide Installation Guide' : 'View Installation Guide'} <ChevronDown className={`h-3 w-3 transition-transform ${showGuide ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleConnect} className="space-y-8">
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Location Identifier</label>
+              <input
+                type="text"
+                value={locId}
+                onChange={(e) => setLocId(e.target.value)}
+                placeholder="Paste Location ID here"
+                className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-5 py-4 text-sm focus:ring-1 focus:ring-[#1068EB] focus:border-[#1068EB] outline-none transition-all placeholder:text-slate-300 font-medium"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Private App Key (PIT)</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Paste Private Integration Token here"
+                className="w-full bg-[#f9fbff] border border-slate-200 rounded-xl px-5 py-4 text-sm focus:ring-1 focus:ring-[#1068EB] focus:border-[#1068EB] outline-none transition-all placeholder:text-slate-300 font-medium"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <Button
+              type="submit"
+              disabled={isConnecting}
+              className="h-14 bg-[#1068EB] hover:bg-[#0D55C2] text-white w-full rounded-xl border-none font-bold text-sm tracking-wide shadow-xl shadow-blue-500/10 flex items-center justify-center gap-2"
+            >
+              {isConnecting ? "Establishing Link..." : <>Connect and start using LIV8 <ChevronRight className="h-4 w-4" /></>}
+            </Button>
+
+            <p className="text-[10px] text-slate-400 font-medium text-center px-4 leading-relaxed">
+              By connecting, you agree to our <a href="#" className="underline">Terms of Service</a> and allow the agent to interact with your CRM data.
+            </p>
+          </div>
+        </form>
+
+        {/* Collapsible Guide */}
+        {showGuide && (
+          <div className="pt-8 border-t border-slate-100 space-y-10">
+            <div className="space-y-6">
+              <div className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-[#1068EB] text-white flex items-center justify-center shrink-0 text-xs font-black ring-4 ring-blue-50">1</div>
+                <div className="space-y-1 pt-1">
+                  <h4 className="font-bold text-slate-900 text-sm">Install Extension</h4>
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">Ensure you have the latest LIV8 OS extension installed from the Chrome Web Store.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-[#1068EB] text-white flex items-center justify-center shrink-0 text-xs font-black ring-4 ring-blue-50">2</div>
+                <div className="space-y-1 pt-1">
+                  <h4 className="font-bold text-slate-900 text-sm">Get Your Location ID</h4>
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">Go to HighLevel Settings &gt; Business Profile and copy the 'Location ID' value.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-[#1068EB] text-white flex items-center justify-center shrink-0 text-xs font-black ring-4 ring-blue-50">3</div>
+                <div className="space-y-1 pt-1">
+                  <h4 className="font-bold text-slate-900 text-sm">Create Private Token</h4>
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">Navigate to Settings &gt; Private Integrations. Click 'Create New Token', name it 'LIV8 Integration', selection all permissions, and copy the resulting Key.</p>
+                </div>
+              </div>
+            </div>
+
+            <Button className="w-full bg-white text-[#1068EB] border-blue-100 hover:bg-blue-50 uppercase tracking-widest text-[10px] font-black h-12 rounded-lg">
+              View Complete Setup Guide <ExternalLink className="h-3 w-3 ml-2" />
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

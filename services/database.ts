@@ -1,5 +1,5 @@
 
-import { BrandBrain, BuildPlan, ApprovalPack } from "../types";
+import { BrandBrain, BuildPlan, ApprovalPack } from "./types";
 
 // Simulated SQL Tables in LocalStorage
 // In a real app, these would be Supabase/Postgres tables.
@@ -33,21 +33,20 @@ class DatabaseService {
 
   // --- Users ---
   async upsertUser(locationId: string): Promise<UserTable> {
-    await this.delay(300); // Simulate network latency
+    await this.delay(300);
     const users = this.getTable<UserTable>('users');
     const existing = users.find(u => u.location_id === locationId);
-    
+
     if (existing) return existing;
 
     const newUser: UserTable = {
       id: crypto.randomUUID(),
-      email: `admin@${locationId}.com`, // Mock email
+      email: `admin@${locationId}.com`,
       location_id: locationId,
       created_at: Date.now()
     };
-    
+
     this.saveTable('users', [...users, newUser]);
-    console.log("[SQL] INSERT INTO users", newUser);
     return newUser;
   }
 
@@ -56,7 +55,7 @@ class DatabaseService {
     await this.delay(500);
     const brands = this.getTable<BrandTable>('brand_brains');
     const existingIdx = brands.findIndex(b => b.location_id === locationId);
-    
+
     const record: BrandTable = {
       id: existingIdx > -1 ? brands[existingIdx].id : crypto.randomUUID(),
       location_id: locationId,
@@ -70,9 +69,8 @@ class DatabaseService {
     } else {
       brands.push(record);
     }
-    
+
     this.saveTable('brand_brains', brands);
-    console.log("[SQL] UPSERT brand_brains", record);
   }
 
   async getBrandBrain(locationId: string): Promise<BrandBrain | null> {
@@ -95,17 +93,29 @@ class DatabaseService {
       deployed_at: Date.now()
     };
     this.saveTable('deployments', [...deployments, newDeployment]);
-    console.log("[SQL] INSERT INTO deployments", newDeployment);
   }
 
   async getLatestDeployment(locationId: string): Promise<DeploymentTable | null> {
     const deployments = this.getTable<DeploymentTable>('deployments');
-    // Sort by date desc
     const locDeployments = deployments
       .filter(d => d.location_id === locationId)
       .sort((a, b) => (b.deployed_at || 0) - (a.deployed_at || 0));
-      
+
     return locDeployments[0] || null;
+  }
+
+  // --- Asset Logs (Phase 10 Deep Sync) ---
+  async saveAssetLog(locationId: string, log: any[]): Promise<void> {
+    await this.delay(300);
+    const logs = this.getTable<any>('asset_logs');
+    const others = logs.filter((l: any) => l.location_id !== locationId);
+    this.saveTable('asset_logs', [...others, { location_id: locationId, assets: log, updated_at: Date.now() }]);
+  }
+
+  async getAssetLog(locationId: string): Promise<any[] | null> {
+    const logs = this.getTable<any>('asset_logs');
+    const record = logs.find((l: any) => l.location_id === locationId);
+    return record ? record.assets : null;
   }
 
   // --- Helpers ---
