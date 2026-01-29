@@ -102,6 +102,19 @@ export const apiCall = async (endpoint: string, options: RequestInit = {}) => {
 };
 
 /**
+ * Generate a simple hash from a string (for deriving password from token)
+ */
+function simpleHash(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(36) + str.slice(-8);
+}
+
+/**
  * Authentication API
  */
 export const auth = {
@@ -134,6 +147,42 @@ export const auth = {
             method: 'POST',
             body: JSON.stringify({ locationId, locationName, ghlToken })
         });
+    },
+
+    /**
+     * Auto-authenticate and connect location
+     * Creates account if needed, logs in if exists, then connects location
+     */
+    async autoConnectLocation(locationId: string, ghlToken: string, locationName?: string): Promise<boolean> {
+        // Generate deterministic credentials from location ID
+        const email = `loc_${locationId}@liv8.auto`;
+        const password = simpleHash(ghlToken);
+        const agencyName = locationName || `Agency ${locationId.slice(0, 8)}`;
+
+        try {
+            // Try to login first (account might already exist)
+            try {
+                await this.login(email, password);
+                console.log('[Auth] Logged into existing account');
+            } catch (loginErr: any) {
+                // If login fails, try to register
+                if (loginErr.message?.includes('Invalid') || loginErr.message?.includes('not found')) {
+                    await this.register(email, password, agencyName);
+                    console.log('[Auth] Created new account');
+                } else {
+                    throw loginErr;
+                }
+            }
+
+            // Now connect the location
+            await this.connectLocation(locationId, locationName || 'GHL Location', ghlToken);
+            console.log('[Auth] Location connected to backend');
+
+            return true;
+        } catch (error: any) {
+            console.error('[Auth] Auto-connect failed:', error.message);
+            return false;
+        }
     },
 
     async getMe() {

@@ -40,15 +40,17 @@ const Connect: React.FC<ConnectProps> = ({ locationId: initialLocationId, onAuth
       // 1. Verify credentials with actual GHL API
       const token = await verifyManualConnection(locId, apiKey);
 
-      // 2. Try to save location to backend (for full features)
-      // This enables backend deployment, analytics, etc.
+      // 2. Auto-connect to backend (creates account if needed)
+      // This enables full backend features: deployment, analytics, AI agents, etc.
       try {
-        await auth.connectLocation(locId, 'GHL Location', apiKey);
-        console.log('[Connect] Location saved to backend successfully');
+        const backendConnected = await auth.autoConnectLocation(locId, apiKey, 'GHL Location');
+        if (backendConnected) {
+          console.log('[Connect] Full backend features enabled');
+          addToast("Cloud Sync", "Backend features enabled", "success");
+        }
       } catch (backendErr) {
-        // Backend might not be available or user not logged in
-        // Extension still works with local storage
-        console.warn('[Connect] Backend connection skipped (local mode):', backendErr);
+        // Backend might not be available - extension still works locally
+        console.warn('[Connect] Backend unavailable, using local mode:', backendErr);
       }
 
       // 3. Proceed with local auth

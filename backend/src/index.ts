@@ -9,9 +9,23 @@ import taskmagicRouter from './api/taskmagic.js';
 import socialContentRouter from './api/social-content.js';
 import settingsRouter from './api/settings.js';
 import agentsRouter from './api/agents.js';
+import { agentSessions } from './db/agent-sessions.js';
 
 // Load environment variables
 dotenv.config();
+
+// Auto-initialize database tables on startup
+const initDatabase = async () => {
+    try {
+        await agentSessions.initTables();
+        console.log('✅ Database tables initialized');
+    } catch (error: any) {
+        console.warn('⚠️ Database init skipped (may already exist):', error.message);
+    }
+};
+
+// Initialize in background (don't block startup)
+initDatabase();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -48,9 +62,18 @@ app.use(cors({
 
 app.use(express.json());
 
-// Health check
+// Health check with configuration status
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', service: 'LIV8 GHL Backend' });
+    res.json({
+        status: 'ok',
+        service: 'LIV8 GHL Backend',
+        config: {
+            database: !!process.env.POSTGRES_URL,
+            gemini: !!process.env.GEMINI_API_KEY,
+            jwt: !!process.env.JWT_SECRET,
+            taskmagic: !!process.env.TASKMAGIC_WEBHOOK_URL
+        }
+    });
 });
 
 // API Routes
