@@ -414,14 +414,19 @@ router.post('/webhook/generate', webhookAuth, async (req: Request, res: Response
         const brandBrain = await db.getBrandBrain(locationId);
 
         // Build brand voice from brand brain or use defaults
+        // Derive tones from tone_profile (keys where value >= 40)
+        const derivedTones = brandBrain?.tone_profile
+            ? Object.entries(brandBrain.tone_profile).filter(([_, v]) => (v as number) >= 40).map(([k]) => k)
+            : ['professional', 'friendly'];
+
         const brandVoice: BrandVoice = brandBrain ? {
             name: brandBrain.brand_name || 'Business',
-            industry: brandBrain.industry_niche || 'General',
-            tone: brandBrain.tones || ['professional', 'friendly'],
-            values: brandBrain.values || ['quality', 'service'],
-            targetAudience: brandBrain.target_audience || 'general audience',
-            keyMessages: brandBrain.key_messages || [],
-            hashtags: brandBrain.hashtags,
+            industry: brandBrain.key_services?.[0] || 'General',
+            tone: derivedTones.length > 0 ? derivedTones : ['professional', 'friendly'],
+            values: brandBrain.do_say || ['quality', 'service'],
+            targetAudience: 'general audience',
+            keyMessages: brandBrain.do_say || [],
+            hashtags: undefined,
             emojis: true
         } : {
             name: 'Business',
@@ -530,13 +535,18 @@ router.post('/webhook/schedule-week', webhookAuth, async (req: Request, res: Res
         // Get brand brain
         const brandBrain = await db.getBrandBrain(locationId);
 
+        // Derive tones from tone_profile
+        const calendarTones = brandBrain?.tone_profile
+            ? Object.entries(brandBrain.tone_profile).filter(([_, v]) => (v as number) >= 40).map(([k]) => k)
+            : ['professional', 'friendly'];
+
         const brandVoice: BrandVoice = brandBrain ? {
             name: brandBrain.brand_name || 'Business',
-            industry: brandBrain.industry_niche || 'General',
-            tone: brandBrain.tones || ['professional', 'friendly'],
-            values: brandBrain.values || ['quality', 'service'],
-            targetAudience: brandBrain.target_audience || 'general audience',
-            keyMessages: brandBrain.key_messages || [],
+            industry: brandBrain.key_services?.[0] || 'General',
+            tone: calendarTones.length > 0 ? calendarTones : ['professional', 'friendly'],
+            values: brandBrain.do_say || ['quality', 'service'],
+            targetAudience: 'general audience',
+            keyMessages: brandBrain.do_say || [],
             emojis: true
         } : {
             name: 'Business',
@@ -638,13 +648,18 @@ router.post('/webhook/contact-content', webhookAuth, async (req: Request, res: R
         // Get brand brain
         const brandBrain = await db.getBrandBrain(locationId);
 
+        // Derive tones from tone_profile
+        const contactTones = brandBrain?.tone_profile
+            ? Object.entries(brandBrain.tone_profile).filter(([_, v]) => (v as number) >= 40).map(([k]) => k)
+            : ['professional', 'friendly'];
+
         const brandVoice: BrandVoice = brandBrain ? {
             name: brandBrain.brand_name || 'Business',
-            industry: brandBrain.industry_niche || 'General',
-            tone: brandBrain.tones || ['professional', 'friendly'],
-            values: brandBrain.values || ['quality', 'service'],
-            targetAudience: brandBrain.target_audience || 'general audience',
-            keyMessages: brandBrain.key_messages || [],
+            industry: brandBrain.key_services?.[0] || 'General',
+            tone: contactTones.length > 0 ? contactTones : ['professional', 'friendly'],
+            values: brandBrain.do_say || ['quality', 'service'],
+            targetAudience: 'general audience',
+            keyMessages: brandBrain.do_say || [],
             emojis: true
         } : {
             name: 'Business',

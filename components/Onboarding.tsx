@@ -389,15 +389,21 @@ const Onboarding: React.FC<OnboardingProps> = ({ locationId: propLocationId, onC
 
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Established Values</div>
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Key Messaging</div>
                     <div className="flex flex-wrap gap-2">
-                      {brandBrain.values.map(v => <span key={v} className="px-3 py-1.5 bg-white border border-slate-100 rounded-xl text-[10px] font-black text-slate-700 uppercase tracking-tight">{v}</span>)}
+                      {brandBrain.do_say?.slice(0, 5).map(v => <span key={v} className="px-3 py-1.5 bg-white border border-slate-100 rounded-xl text-[10px] font-black text-slate-700 uppercase tracking-tight">{v}</span>)}
                     </div>
                   </div>
                   <div className="space-y-3">
                     <div className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Voice Modulation</div>
                     <div className="flex flex-wrap gap-2">
-                      {brandBrain.tones.map(t => <span key={t} className="px-3 py-1.5 bg-neuro text-white rounded-xl text-[10px] font-black uppercase tracking-tighter shadow-sm">{t}</span>)}
+                      {brandBrain.tone_profile && Object.entries(brandBrain.tone_profile)
+                        .filter(([_, value]) => (value as number) >= 40)
+                        .map(([key]) => (
+                          <span key={key} className="px-3 py-1.5 bg-neuro text-white rounded-xl text-[10px] font-black uppercase tracking-tighter shadow-sm">
+                            {key.charAt(0).toUpperCase() + key.slice(1)}
+                          </span>
+                        ))}
                     </div>
                   </div>
                 </div>

@@ -11,17 +11,28 @@ export interface KnowledgeItem {
 export interface BrandBrain {
   brand_name: string;
   domain: string;
-  socials: string[];
+  industry_niche: string;
+  key_services: string[];
+  primary_offer: string;
+  geographic_location: string;
   tone_profile: {
     professional: number;
     friendly: number;
     direct: number;
   };
-  key_services: string[];
   do_say: string[];
   dont_say: string[];
   faqs: { q: string; a: string }[];
-  knowledge_base: KnowledgeItem[];
+  target_keywords: string[];
+  aeo_profile: {
+    common_questions: string[];
+    answer_patterns: string[];
+    schema_suggestions: string[];
+  };
+  social_proof: string[];
+  // Optional legacy/UI-specific fields
+  socials?: string[];
+  knowledge_base?: KnowledgeItem[];
   mission?: string;
   marketStage?: 'startup' | 'revamp' | 'scale';
 }

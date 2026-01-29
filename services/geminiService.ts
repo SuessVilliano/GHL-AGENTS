@@ -82,14 +82,26 @@ export const scanBrandIdentity = async (domain: string, description: string, bra
   const mockBrain: BrandBrain = {
     brand_name: branding.businessName || "New Venture",
     domain: domain || "example.com",
-    socials: branding.socialFB ? [branding.socialFB, branding.socialIG, branding.socialLI].filter(Boolean) : [],
-    tone_profile: { professional: stage === 'scale' ? 0.9 : 0.7, friendly: 0.3, direct: 0.5 },
+    industry_niche: "General Services",
     key_services: ["Automated Solutions"],
-    do_say: ["Absolutely"],
-    dont_say: ["I don't know"],
+    primary_offer: "Quality service for your needs",
+    geographic_location: "Local Area",
+    tone_profile: { professional: stage === 'scale' ? 0.9 : 0.7, friendly: 0.6, direct: 0.5 },
+    do_say: ["Absolutely", "Professional service", "Reliable results"],
+    dont_say: ["I don't know", "That's not possible"],
     faqs: [{ q: "How do we start?", a: "Book a neural consult." }],
+    target_keywords: ["professional", "local services"],
+    aeo_profile: {
+      common_questions: ["How much does it cost?", "Are you licensed?"],
+      answer_patterns: ["Direct answers", "Include pricing context"],
+      schema_suggestions: ["LocalBusiness", "Service"]
+    },
+    social_proof: [],
+    // Optional fields
+    socials: branding.socialFB ? [branding.socialFB, branding.socialIG, branding.socialLI].filter(Boolean) : [],
     knowledge_base: [],
-    marketStage: stage as any
+    marketStage: stage as any,
+    mission: "Delivering exceptional value through innovative solutions"
   };
 
   try {
@@ -117,8 +129,10 @@ export const scanBrandIdentity = async (domain: string, description: string, bra
             properties: {
               brand_name: { type: Type.STRING },
               domain: { type: Type.STRING },
-              socials: { type: Type.ARRAY, items: { type: Type.STRING } },
-              mission: { type: Type.STRING }, // Added mission for voice preview
+              industry_niche: { type: Type.STRING },
+              primary_offer: { type: Type.STRING },
+              geographic_location: { type: Type.STRING },
+              mission: { type: Type.STRING },
               tone_profile: {
                 type: Type.OBJECT,
                 properties: {
@@ -136,7 +150,17 @@ export const scanBrandIdentity = async (domain: string, description: string, bra
                   type: Type.OBJECT,
                   properties: { q: { type: Type.STRING }, a: { type: Type.STRING } }
                 }
-              }
+              },
+              target_keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+              aeo_profile: {
+                type: Type.OBJECT,
+                properties: {
+                  common_questions: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  answer_patterns: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  schema_suggestions: { type: Type.ARRAY, items: { type: Type.STRING } }
+                }
+              },
+              social_proof: { type: Type.ARRAY, items: { type: Type.STRING } }
             }
           }
         }
