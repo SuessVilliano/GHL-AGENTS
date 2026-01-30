@@ -9,6 +9,7 @@ import taskmagicRouter from './api/taskmagic.js';
 import socialContentRouter from './api/social-content.js';
 import settingsRouter from './api/settings.js';
 import agentsRouter from './api/agents.js';
+import smartAgentsRouter from './api/smart-agents.js';
 import { agentSessions } from './db/agent-sessions.js';
 
 // Load environment variables
@@ -85,6 +86,7 @@ app.use('/api/taskmagic', taskmagicRouter);
 app.use('/api/social', socialContentRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/agents', agentsRouter);
+app.use('/api/smart-agents', smartAgentsRouter);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
