@@ -1,6 +1,9 @@
+// Load environment variables (MUST be first line before any imports)
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import authRouter from './api/auth.js';
 import operatorRouter from './api/operator.js';
 import setupRouter from './api/setup.js';
@@ -8,12 +11,16 @@ import analyticsRouter from './api/analytics.js';
 import taskmagicRouter from './api/taskmagic.js';
 import socialContentRouter from './api/social-content.js';
 import settingsRouter from './api/settings.js';
+<<<<<<< Updated upstream
 import agentsRouter from './api/agents.js';
 import smartAgentsRouter from './api/smart-agents.js';
 import { agentSessions } from './db/agent-sessions.js';
+import { mcpClient } from './services/mcp-client.js';
+import { authenticateMcp } from './middleware/authenticateMcp.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types';
 
-// Load environment variables
-dotenv.config();
+console.log('DEBUG: POSTGRES_URL from process.env:', process.env.POSTGRES_URL);
+console.log('DEBUG: JWT_SECRET from process.env:', process.env.JWT_SECRET);
 
 // Auto-initialize database tables on startup
 const initDatabase = async () => {
@@ -34,11 +41,9 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow extension side panel (no origin or chrome-extension)
         if (!origin || origin.startsWith('chrome-extension://')) {
             callback(null, true);
         }
-        // Allow GHL webhook calls
         else if (origin?.includes('gohighlevel.com') || origin?.includes('leadconnectorhq.com')) {
             callback(null, true);
         }
@@ -51,7 +56,6 @@ app.use(cors({
             if (allowed.includes(origin)) {
                 callback(null, true);
             } else {
-                // Allow webhooks (no origin) in production
                 callback(null, true);
             }
         } else {
@@ -87,6 +91,139 @@ app.use('/api/social', socialContentRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/smart-agents', smartAgentsRouter);
+
+
+// --- MCP Integration ---
+
+// Define tool definitions for MCP
+const ghlToolDefinitions = {
+    'ghl-create-contact': {
+        description: 'Creates a new contact in GoHighLevel.',
+        parameters: {
+            type: 'object',
+            properties: {
+                firstName: { type: 'string', description: 'First name of the contact' },
+                lastName: { type: 'string', description: 'Last name of the contact' },
+                email: { type: 'string', format: 'email', description: 'Email of the contact' },
+                phone: { type: 'string', description: 'Phone number of the contact' },
+                tags: { type: 'array', items: { type: 'string' }, description: 'Tags to add to the contact' }
+            },
+            required: ['firstName', 'email']
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                id: { type: 'string' },
+                firstName: { type: 'string' },
+                email: { type: 'string' }
+            }
+        }
+    },
+    'ghl-send-sms': {
+        description: 'Sends an SMS message to a contact in GoHighLevel.',
+        parameters: {
+            type: 'object',
+            properties: {
+                contactId: { type: 'string', description: 'ID of the contact to send SMS to' },
+                message: { type: 'string', description: 'The SMS message content' }
+            },
+            required: ['contactId', 'message']
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean' },
+                message: { type: 'string' }
+            }
+        }
+    },
+    'ghl-get-contact': {
+        description: 'Retrieves a contact from GoHighLevel by ID.',
+        parameters: {
+            type: 'object',
+            properties: {
+                contactId: { type: 'string', description: 'ID of the contact to retrieve' }
+            },
+            required: ['contactId']
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                id: { type: 'string' },
+                firstName: { type: 'string' },
+                email: { type: 'string' }
+            }
+        }
+    },
+    'ghl-search-contacts': {
+        description: 'Searches for contacts in GoHighLevel by a query string.',
+        parameters: {
+            type: 'object',
+            properties: {
+                query: { type: 'string', description: 'Search query for contacts' },
+                limit: { type: 'number', description: 'Maximum number of results to return' }
+            },
+            required: ['query']
+        },
+        returns: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string' },
+                    firstName: { type: 'string' },
+                    email: { type: 'string' }
+                }
+            }
+        }
+    }
+    // TODO: Add more tool definitions as needed
+};
+
+// GET /mcp for listing tools (schema discovery)
+app.get('/mcp', (req, res) => { // Removed authenticateMcp
+    try {
+        return res.json({
+            response: {
+                tools: Object.entries(ghlToolDefinitions).map(([name, definition]) => ({ name, definition }))
+            }
+        });
+    } catch (error: any) {
+        console.error('MCP ListTools request failed:', error);
+        return res.status(500).json({ error: error.message || 'Internal MCP server error during tool listing' });
+    }
+});
+
+// POST /mcp for calling tools
+app.post('/mcp', async (req, res) => { // Removed authenticateMcp
+    try {
+        // Dummy values for debugging without authentication
+        const ghlToken = process.env.GHL_TEST_TOKEN || 'dummy_ghl_token';
+        const ghlLocationId = process.env.GHL_TEST_LOCATION_ID || 'dummy_ghl_location_id';
+
+        // Ensure GHL test credentials are set in .env for actual use
+        if (!process.env.GHL_TEST_TOKEN || !process.env.GHL_TEST_LOCATION_ID) {
+            console.warn("GHL_TEST_TOKEN or GHL_TEST_LOCATION_ID not set. Using dummy values for MCP tool execution.");
+        }
+        
+        // Determine if it's a CallTool request
+        const callToolRequest = CallToolRequestSchema.parse(req.body);
+        const { tool_name, args } = callToolRequest.params;
+
+        console.log(`[MCP] CallTool request: ${tool_name} with args:`, args);
+
+        const result = await mcpClient.callTool(tool_name, args, ghlToken, ghlLocationId);
+        return res.json({ response: { result } });
+        
+    } catch (error: any) {
+        console.error('MCP CallTool request failed:', error);
+        if (error.issues) { // Zod validation errors
+            return res.status(400).json({ error: 'Invalid MCP request payload', details: error.issues });
+        }
+        return res.status(500).json({ error: error.message || 'Internal MCP server error' });
+    }
+});
+
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

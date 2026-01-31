@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { db } from '../db/index.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET; // Ensure this is always set via .env or env var
 const JWT_EXPIRES_IN = '7d';
 
 export interface JWTPayload {
@@ -34,15 +34,23 @@ export const authService = {
      * Generate JWT token
      */
     generateToken(payload: JWTPayload): string {
-        return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        const secret = process.env.JWT_SECRET;
+        if (!secret) {
+            throw new Error('JWT_SECRET is not defined.');
+        }
+        return jwt.sign(payload, secret, { expiresIn: JWT_EXPIRES_IN });
     },
 
     /**
      * Verify JWT token
      */
     verifyToken(token: string): JWTPayload {
+        const secret = process.env.JWT_SECRET;
+        if (!secret) {
+            throw new Error('JWT_SECRET is not defined.');
+        }
         try {
-            return jwt.verify(token, JWT_SECRET) as JWTPayload;
+            return jwt.verify(token, secret) as JWTPayload;
         } catch (error) {
             throw new Error('Invalid or expired token');
         }
