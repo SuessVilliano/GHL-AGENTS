@@ -1,6 +1,6 @@
 import express from 'express';
 import { vboutService } from '../services/vboutService.js';
-import { authenticateUser } from '../middleware/authenticateUser.js'; // Assuming we'll have user authentication for these routes
+// import { authenticateUser } from '../middleware/authenticateUser.js'; // Removed as it caused build error and is not actively used
 
 const vboutRouter = express.Router();
 
